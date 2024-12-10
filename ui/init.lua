@@ -4,6 +4,7 @@ M.components = {}
 M.buttons = {}
 M.lists = {}
 M.idx = 0
+M.to_delete_nodes = {}
 
 local function register(component)
 	M.idx = M.idx + 1
@@ -40,7 +41,7 @@ local function fill_list(node, item_template_node, data, bind_fn, idx, nodes, co
 		table.remove(components, i)
     end
     for i = #nodes, 1, -1 do
-		gui.delete_node(nodes[i])
+		M.to_delete_nodes[nodes[i]] = true
 		table.remove(nodes, i)
     end
 
@@ -53,7 +54,7 @@ local function fill_list(node, item_template_node, data, bind_fn, idx, nodes, co
 		for c = 1, cols do
 			if t_idx <= #data then
 				local tree_clone = gui.clone_tree(item_template_node)
-				for _, handle in ipairs({ bind_fn(tree_clone, data[t_idx]) }) do
+				for _, handle in ipairs({ bind_fn(tree_clone, data[t_idx], t_idx) }) do
 					table.insert(components, handle)
 				end
 
@@ -61,7 +62,7 @@ local function fill_list(node, item_template_node, data, bind_fn, idx, nodes, co
 				table.insert(nodes, clone_root)
 
 				gui.set_parent(clone_root, node, false)
-				gui.set_position(clone_root, vmath.vector3(element_size.x * (c - 1), element_size.y * (r - 1), 0))
+				gui.set_position(clone_root, vmath.vector3(element_size.x * (c - 1), -element_size.y * (r - 1), 0))
 
 				t_idx = t_idx + 1
 			end
@@ -82,15 +83,15 @@ function M.add_list(node, item_template_node, data, bind_fn)
 			M.del_component(components[i])
 		end
 		for i = #nodes, 1, -1 do
-			gui.delete_node(nodes[i])
+			M.to_delete_nodes[nodes[i]] = true
 		end
 	end
 
 	local component = { array = M.lists, on_remove = clear }
 	local function flip(shift)
 		local t_idx = start_idx
-		local n_idx = math.min(math.max(t_idx + shift, 1), #data)
-		if n_idx ~= t_idx then
+		local n_idx = math.max(t_idx + shift, 1)
+		if n_idx ~= t_idx and n_idx <= #data then
 			start_idx = n_idx
 			page = fill_list(node, item_template_node, data, bind_fn, start_idx, nodes, components)
 		end
@@ -118,6 +119,13 @@ function M.on_input(action_id, action)
 		end
 	end
 	return false
+end
+
+function M.update()
+	for node, _ in pairs(M.to_delete_nodes) do
+		gui.delete_node(node)
+	end
+	M.to_delete_nodes = {}
 end
 
 function M.final()

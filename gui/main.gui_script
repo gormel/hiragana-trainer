@@ -1,0 +1,262 @@
+local ui = require "ui/init"
+local hiragana = require "cfg/hiragana"
+
+local save_file = sys.get_save_file("hiragana-trainer", "settings")
+
+local SCHEME = {
+	NODE_TRAIN = "train_state",
+	NODE_SETTINGS = "settings_state",
+
+	STATE_FROM = "question_state",
+	STATE_TO = "answer_state",
+
+	TEXT_EN = "en_text",
+	TEXT_JP = "jp_text",
+
+	BTN_EN_JP = "en_jp_btn",
+	BTN_JP_EN = "jp_en_btn",
+	BTN_STEP = "next_btn",
+	BTN_SETTINGS = "settings_btn",
+
+	LIST_LETTERS = "letters_list",
+
+	TEMPLATE_LETTER = "template_letter",
+	BTN_LETTER_ENABLE = "template_letter_enable_btn",
+	BTN_LETTER_DISABLE = "template_letter_disable_btn",
+	TEXT_LETTER = "template_letter_text",
+
+	BTN_HIRAGANA = "hiragana_btn",
+	BTN_KATAKANA = "katakana_btn",
+	BTN_NEXT_PAGE = "next_page_btn",
+	BTN_PREV_PAGE = "prev_page_btn",
+	BTN_TRAIN = "train_btn",
+}
+
+local DIRECTION_JP_EN = {
+	from = function(settings) return settings.lang end,
+	to = function() return "en" end,
+	on = SCHEME.BTN_EN_JP,
+	off = SCHEME.BTN_JP_EN,
+	text_from = SCHEME.TEXT_JP,
+	text_to = SCHEME.TEXT_EN,
+}
+
+local DIRECTION_EN_JP = {
+	from = function() return "en" end,
+	to = function(settings) return settings.lang end,
+	on = SCHEME.BTN_JP_EN,
+	off = SCHEME.BTN_EN_JP,
+	text_from = SCHEME.TEXT_EN,
+	text_to = SCHEME.TEXT_JP,
+}
+
+local function set_from(self)
+	self.state_step = "FROM"
+
+	local indices = {}
+	for idx, include in pairs(self.settings.letters) do
+		if include then
+			table.insert(indices, idx)
+		end
+	end
+
+	if #indices > 0 then
+		self.state_idx = indices[math.random(#indices)]
+	end
+
+	local text_node = gui.get_node(self.train_direction.text_from)
+	local off_text = gui.get_node(self.train_direction.text_to)
+	local from_state = gui.get_node(SCHEME.STATE_FROM)
+	local to_state = gui.get_node(SCHEME.STATE_TO)
+
+	gui.set_enabled(text_node, true)
+	gui.set_enabled(off_text, false)
+	gui.set_enabled(from_state, true)
+	gui.set_enabled(to_state, false)
+	gui.set_text(text_node, hiragana[self.state_idx][self.train_direction.from(self.settings)])
+end
+
+local function set_to(self)
+	self.state_step = "TO"
+
+	local text_node = gui.get_node(self.train_direction.text_to)
+	local off_text = gui.get_node(self.train_direction.text_from)
+	local from_state = gui.get_node(SCHEME.STATE_FROM)
+	local to_state = gui.get_node(SCHEME.STATE_TO)
+
+	gui.set_enabled(text_node, true)
+	gui.set_enabled(off_text, false)
+	gui.set_enabled(from_state, false)
+	gui.set_enabled(to_state, true)
+	gui.set_text(text_node, hiragana[self.state_idx][self.train_direction.to(self.settings)])
+end
+
+local function do_step(self)
+	if self.state_step == nil or self.state_step == "TO" then
+		set_from(self)
+		return
+	elseif self.state_step == "FROM" then
+		set_to(self)
+	end
+end
+
+local function set_direction(self, direction)
+	self.train_direction = direction
+
+	local on_node = gui.get_node(direction.on)
+	local off_node = gui.get_node(direction.off)
+
+	gui.set_enabled(on_node, true)
+	gui.set_enabled(off_node, false)
+
+	self.state_step = nil
+	do_step(self)
+end
+
+local function goto_settings(self)
+	local train_node = gui.get_node(SCHEME.NODE_TRAIN)
+	local settings_node = gui.get_node(SCHEME.NODE_SETTINGS)
+
+	gui.set_enabled(train_node, false)
+	gui.set_enabled(settings_node, true)
+end
+
+local function select_hiragana(self)
+	self.settings.lang = "jph"
+	
+	local hiragana_btn = gui.get_node(SCHEME.BTN_HIRAGANA)
+	local katakana_btn = gui.get_node(SCHEME.BTN_KATAKANA)
+
+	gui.set_enabled(hiragana_btn, false)
+	gui.set_enabled(katakana_btn, true)
+end
+
+local function select_katakana(self)
+	self.settings.lang = "jpk"
+	
+	local hiragana_btn = gui.get_node(SCHEME.BTN_HIRAGANA)
+	local katakana_btn = gui.get_node(SCHEME.BTN_KATAKANA)
+
+	gui.set_enabled(hiragana_btn, true)
+	gui.set_enabled(katakana_btn, false)
+end
+
+local function goto_train(self)
+	sys.save(save_file, self.settings)
+
+	local train_node = gui.get_node(SCHEME.NODE_TRAIN)
+	local settings_node = gui.get_node(SCHEME.NODE_SETTINGS)
+
+	gui.set_enabled(train_node, true)
+	gui.set_enabled(settings_node, false)
+	
+	set_direction(self, DIRECTION_EN_JP)
+end
+
+function init(self)
+	msg.post(".", "acquire_input_focus")
+	
+	math.randomseed(socket.gettime())
+
+	local loaded = sys.load(save_file)
+	pprint("++++", loaded)
+	if not next(loaded) then
+		self.settings = {
+			lang = "jpk",
+			letters = {},
+		}
+
+		for i = 1, #hiragana do
+			self.settings.letters[i] = true
+		end
+	else
+		self.settings = loaded
+	end
+
+	set_direction(self, DIRECTION_EN_JP)
+	
+	local jp_en_btn = gui.get_node(SCHEME.BTN_JP_EN)
+	local en_jp_btn = gui.get_node(SCHEME.BTN_EN_JP)
+	local step_btn = gui.get_node(SCHEME.BTN_STEP)
+	local settings_btn = gui.get_node(SCHEME.BTN_SETTINGS)
+	local train_btn = gui.get_node(SCHEME.BTN_TRAIN)
+	local hiragana_btn = gui.get_node(SCHEME.BTN_HIRAGANA)
+	local katakana_btn = gui.get_node(SCHEME.BTN_KATAKANA)
+	local letter_template = gui.get_node(SCHEME.TEMPLATE_LETTER)
+	local letter_list = gui.get_node(SCHEME.LIST_LETTERS)
+	local prev_btn = gui.get_node(SCHEME.BTN_PREV_PAGE)
+	local next_btn = gui.get_node(SCHEME.BTN_NEXT_PAGE)
+
+	gui.set_enabled(letter_template, false)
+	gui.set_enabled(hiragana_btn, self.settings.lang == "jpk")
+	gui.set_enabled(katakana_btn, self.settings.lang == "jph")
+
+	local _, prev, next = ui.add_list(letter_list, letter_template, hiragana, function (tree, data, idx)
+		gui.set_enabled(tree[SCHEME.TEMPLATE_LETTER], true)
+		gui.set_text(tree[SCHEME.TEXT_LETTER], data.en)
+		gui.set_enabled(tree[SCHEME.BTN_LETTER_ENABLE], not self.settings.letters[idx])
+		gui.set_enabled(tree[SCHEME.BTN_LETTER_DISABLE], self.settings.letters[idx])
+
+		local enable_btn = ui.add_button(tree[SCHEME.BTN_LETTER_ENABLE], function()
+			gui.set_enabled(tree[SCHEME.BTN_LETTER_ENABLE], false)
+			gui.set_enabled(tree[SCHEME.BTN_LETTER_DISABLE], true)
+
+			self.settings.letters[idx] = true
+		end)
+
+		local disable_btn = ui.add_button(tree[SCHEME.BTN_LETTER_DISABLE], function()
+			gui.set_enabled(tree[SCHEME.BTN_LETTER_ENABLE], true)
+			gui.set_enabled(tree[SCHEME.BTN_LETTER_DISABLE], false)
+
+			self.settings.letters[idx] = false
+		end)
+
+		return enable_btn, disable_btn
+	end)
+
+	
+	ui.add_button(jp_en_btn, function()
+		set_direction(self, DIRECTION_JP_EN)
+	end)
+	ui.add_button(en_jp_btn, function()
+		set_direction(self, DIRECTION_EN_JP)
+	end)
+	ui.add_button(step_btn, function()
+		do_step(self)
+	end)
+	ui.add_button(settings_btn, function()
+		goto_settings(self)
+	end)
+	ui.add_button(train_btn, function()
+		goto_train(self)
+	end)
+	ui.add_button(hiragana_btn, function()
+		select_hiragana(self)
+	end)
+	ui.add_button(katakana_btn, function()
+		select_katakana(self)
+	end)
+	ui.add_button(prev_btn, function()
+		prev()
+	end)
+	ui.add_button(next_btn, function()
+		next()
+	end)
+
+	goto_train(self)
+end
+
+function final(self)
+	ui.final()
+end
+
+function update(self, dt)
+	ui.update()
+end
+
+function on_message(self, message_id, message, sender)
+end
+
+function on_input(self, action_id, action)
+	ui.on_input(action_id, action)
+end

@@ -1,4 +1,4 @@
-font: "/fonts/Geologica-Black.ttf"
+font: "/assets/fonts/Geologica-Black.ttf"
 material: "/builtins/fonts/font.material"
 size: 160
 antialias: 1

@@ -6,17 +6,19 @@ shared_state = 1
 
 [display]
 width = 256
-height = 256
+height = 512
 high_dpi = 1
+fullscreen = 0
+dynamic_orientation = 0
 
 [android]
 input_method = HiddenInputField
-app_icon_36x36 = /android/icon.png
-app_icon_48x48 = /android/icon.png
-app_icon_72x72 = /android/icon.png
-app_icon_96x96 = /android/icon.png
-app_icon_144x144 = /android/icon.png
-app_icon_192x192 = /android/icon.png
+app_icon_36x36 = /platform/android/icon.png
+app_icon_48x48 = /platform/android/icon.png
+app_icon_72x72 = /platform/android/icon.png
+app_icon_96x96 = /platform/android/icon.png
+app_icon_144x144 = /platform/android/icon.png
+app_icon_192x192 = /platform/android/icon.png
 
 [html5]
 scale_mode = stretch
@@ -25,5 +27,5 @@ scale_mode = stretch
 title = hiragana-trainer
 
 [windows]
-app_icon = /windows/icon.ico
+app_icon = /platform/windows/icon.ico
 
