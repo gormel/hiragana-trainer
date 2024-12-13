@@ -19,7 +19,7 @@ app_icon_72x72 = /platform/android/icon.png
 app_icon_96x96 = /platform/android/icon.png
 app_icon_144x144 = /platform/android/icon.png
 app_icon_192x192 = /platform/android/icon.png
-package = com.hiragana-trainer.gormel
+package = com.hiraganatrainer.gormel
 version_code = 4
 
 [html5]
