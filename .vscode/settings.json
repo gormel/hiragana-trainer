@@ -15,7 +15,8 @@
         "redefined-local"
     ],
     "Lua.workspace.library": [
-        "~\\AppData\\Roaming\\Code\\User\\globalStorage\\astronachos.defold"
+        "~\\AppData\\Roaming\\Code\\User\\globalStorage\\astronachos.defold",
+        "~\\AppData\\Roaming\\Code\\User\\workspaceStorage\\457bd3c1f9d61b478b856e00547493a9\\astronachos.defold"
     ],
     "glsllint.additionalStageAssociations": {
         ".fp": "frag",

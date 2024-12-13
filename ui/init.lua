@@ -3,6 +3,7 @@ local M = {}
 M.components = {}
 M.buttons = {}
 M.lists = {}
+M.progreses = {}
 M.idx = 0
 M.to_delete_nodes = {}
 
@@ -106,6 +107,28 @@ function M.add_list(node, item_template_node, data, bind_fn)
 	end
 
 	return register(component), prev, next
+end
+
+function M.add_progress(node, max_x, max_y)
+	local init_size = gui.get_size(node)
+	local component = { array = M.progreses }
+
+	local function set(value)
+		value = math.max(0, math.min(1, value))
+
+		local new_size = vmath.vector3(init_size)
+		if max_x ~= nil then
+			new_size.x = new_size.x * (1 - value) + max_x * value
+		end
+		
+		if max_y ~= nil then
+			new_size.y = new_size.y * (1 - value) + max_y * value
+		end
+
+		gui.set_size(node, new_size)
+	end
+
+	return register(component), set
 end
 
 function M.on_input(action_id, action)

@@ -29,6 +29,10 @@ local SCHEME = {
 	BTN_KATAKANA = "katakana_btn",
 	BTN_NEXT_PAGE = "next_page_btn",
 	BTN_PREV_PAGE = "prev_page_btn",
+	BTN_SELECT_ALL = "select_all_btn",
+	BTN_SELECT_NONE = "select_none_btn",
+	BTN_RESET_PROGRESS = "reset_progress_btn",
+	PROGRESS_TRAIN = "train_progress",
 	BTN_TRAIN = "train_btn",
 }
 
@@ -61,7 +65,23 @@ local function set_from(self)
 	end
 
 	if #indices > 0 then
+		if #self.rolled == #indices then
+			self.rolled = {}
+		end
+		local all_indices = #indices
+
+		for _, rolled_idx in ipairs(self.rolled) do
+			for i = #indices, 1, -1 do
+				if indices[i] == rolled_idx then
+					indices[i] = indices[#indices]
+					indices[#indices] = nil
+				end
+			end
+		end
+
 		self.state_idx = indices[math.random(#indices)]
+		table.insert(self.rolled, self.state_idx)
+		self.set_progress(#self.rolled / all_indices)
 	end
 
 	local text_node = gui.get_node(self.train_direction.text_from)
@@ -110,6 +130,8 @@ local function set_direction(self, direction)
 	gui.set_enabled(off_node, false)
 
 	self.state_step = nil
+	self.rolled = {}
+	self.set_progress(0)
 	do_step(self)
 end
 
@@ -153,45 +175,21 @@ local function goto_train(self)
 	set_direction(self, DIRECTION_EN_JP)
 end
 
-function init(self)
-	msg.post(".", "acquire_input_focus")
-	
-	math.randomseed(socket.gettime())
-
-	local loaded = sys.load(save_file)
-	pprint("++++", loaded)
-	if not next(loaded) then
-		self.settings = {
-			lang = "jpk",
-			letters = {},
-		}
-
-		for i = 1, #hiragana do
-			self.settings.letters[i] = true
+local function rebuild_letter_list(self)
+	if self.list_components ~= nil then
+		for _, component_id in ipairs(self.list_components) do
+			ui.del_component(component_id)
 		end
-	else
-		self.settings = loaded
 	end
 
-	set_direction(self, DIRECTION_EN_JP)
-	
-	local jp_en_btn = gui.get_node(SCHEME.BTN_JP_EN)
-	local en_jp_btn = gui.get_node(SCHEME.BTN_EN_JP)
-	local step_btn = gui.get_node(SCHEME.BTN_STEP)
-	local settings_btn = gui.get_node(SCHEME.BTN_SETTINGS)
-	local train_btn = gui.get_node(SCHEME.BTN_TRAIN)
-	local hiragana_btn = gui.get_node(SCHEME.BTN_HIRAGANA)
-	local katakana_btn = gui.get_node(SCHEME.BTN_KATAKANA)
-	local letter_template = gui.get_node(SCHEME.TEMPLATE_LETTER)
 	local letter_list = gui.get_node(SCHEME.LIST_LETTERS)
 	local prev_btn = gui.get_node(SCHEME.BTN_PREV_PAGE)
 	local next_btn = gui.get_node(SCHEME.BTN_NEXT_PAGE)
+	local letter_template = gui.get_node(SCHEME.TEMPLATE_LETTER)
 
 	gui.set_enabled(letter_template, false)
-	gui.set_enabled(hiragana_btn, self.settings.lang == "jpk")
-	gui.set_enabled(katakana_btn, self.settings.lang == "jph")
 
-	local _, prev, next = ui.add_list(letter_list, letter_template, hiragana, function (tree, data, idx)
+	local list_id, prev, next = ui.add_list(letter_list, letter_template, hiragana, function (tree, data, idx)
 		gui.set_enabled(tree[SCHEME.TEMPLATE_LETTER], true)
 		gui.set_text(tree[SCHEME.TEXT_LETTER], data.en)
 		gui.set_enabled(tree[SCHEME.BTN_LETTER_ENABLE], not self.settings.letters[idx])
@@ -213,7 +211,52 @@ function init(self)
 
 		return enable_btn, disable_btn
 	end)
+	local prev_btn_id = ui.add_button(prev_btn, function()
+		prev()
+	end)
+	local next_btn_id = ui.add_button(next_btn, function()
+		next()
+	end)
 
+	self.list_components = { list_id, prev_btn_id, next_btn_id }
+end
+
+function init(self)
+	msg.post(".", "acquire_input_focus")
+	
+	math.randomseed(socket.gettime())
+	self.rolled = {}
+
+	local loaded = sys.load(save_file)
+	if not next(loaded) then
+		self.settings = {
+			lang = "jpk",
+			letters = {},
+		}
+
+		for i = 1, #hiragana do
+			self.settings.letters[i] = true
+		end
+	else
+		self.settings = loaded
+	end
+	
+	local jp_en_btn = gui.get_node(SCHEME.BTN_JP_EN)
+	local en_jp_btn = gui.get_node(SCHEME.BTN_EN_JP)
+	local step_btn = gui.get_node(SCHEME.BTN_STEP)
+	local settings_btn = gui.get_node(SCHEME.BTN_SETTINGS)
+	local train_btn = gui.get_node(SCHEME.BTN_TRAIN)
+	local hiragana_btn = gui.get_node(SCHEME.BTN_HIRAGANA)
+	local katakana_btn = gui.get_node(SCHEME.BTN_KATAKANA)
+	local select_all_btn = gui.get_node(SCHEME.BTN_SELECT_ALL)
+	local select_none_btn = gui.get_node(SCHEME.BTN_SELECT_NONE)
+	local reset_progress_btn = gui.get_node(SCHEME.BTN_RESET_PROGRESS)
+	local train_progress = gui.get_node(SCHEME.PROGRESS_TRAIN)
+
+	gui.set_enabled(hiragana_btn, self.settings.lang == "jpk")
+	gui.set_enabled(katakana_btn, self.settings.lang == "jph")
+
+	rebuild_letter_list(self)
 	
 	ui.add_button(jp_en_btn, function()
 		set_direction(self, DIRECTION_JP_EN)
@@ -236,13 +279,31 @@ function init(self)
 	ui.add_button(katakana_btn, function()
 		select_katakana(self)
 	end)
-	ui.add_button(prev_btn, function()
-		prev()
+	ui.add_button(select_all_btn, function()
+		for i = 1, #hiragana do
+			self.settings.letters[i] = true
+		end
+
+		rebuild_letter_list(self)
 	end)
-	ui.add_button(next_btn, function()
-		next()
+	ui.add_button(select_none_btn, function()
+		for i = 1, #hiragana do
+			self.settings.letters[i] = false
+		end
+
+		rebuild_letter_list(self)
 	end)
 
+	local _, set_progress = ui.add_progress(train_progress, 228, nil)
+	self.set_progress = set_progress
+	self.set_progress(0)
+
+	ui.add_button(reset_progress_btn, function()
+		self.rolled = {}
+		self.set_progress(0)
+	end)
+
+	set_direction(self, DIRECTION_EN_JP)
 	goto_train(self)
 end
 
